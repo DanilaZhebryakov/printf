@@ -1,0 +1,27 @@
+     1                                  extern printf_
+     2                                  
+     3                                  section .text
+     4                                  global _start
+     5                                      _start:
+     6 00000000 55                          push rbp
+     7 00000001 4889E5                      mov rbp, rsp
+     8                                  
+     9 00000004 48BF-                       mov rdi, test_str
+     9 00000006 [0000000000000000] 
+    10                                  
+    11 0000000E 6A2A                        push '*'
+    12 00000010 68ADBA0000                  push 0xBAAD
+    13 00000015 68A629FFFF                  push -54874
+    14 0000001A 68[00000000]                push test_str
+    15                                  
+    16 0000001F E8(00000000)                call printf_
+    17                                  
+    18 00000024 4889EC                      mov rsp, rbp
+    19 00000027 5D                          pop rbp
+    20 00000028 B83C000000                  mov rax, 0x3C ;exit
+    21 0000002D BF00000000                  mov rdi, 0 ;(0)
+    22 00000032 0F05                        syscall
+    23                                  section .data 
+    24 00000000 616263642025732025-         test_str db "abcd %s %d %h %cEFG %%", 10, 0
+    24 00000009 642025682025634546-
+    24 00000012 472025250A00       

@@ -1,0 +1,192 @@
+     1                                  
+     2                                  section .text
+     3                                  ; flushes output buffer to stdout
+     4                                  ; destroys: rdx
+     5                                  out_buff_flush:
+     6 00000000 57                              push rdi
+     7 00000001 56                              push rsi
+     8 00000002 51                              push rcx
+     9                                  
+    10 00000003 B801000000                      mov rax, 0x01 ;write
+    11 00000008 BF01000000                      mov rdi, 1    ;stdout
+    12 0000000D 48BE-                           mov rsi, output_buff
+    12 0000000F [0000000000000000] 
+    13 00000017 488B1425[00000000]              mov rdx, qword[output_buff_fill]
+    14 0000001F 0F05                            syscall
+    15 00000021 48C70425[00000000]-             mov qword[output_buff_fill], 0
+    15 00000029 00000000           
+    16 0000002D 59                              pop rcx
+    17 0000002E 5E                              pop rsi
+    18 0000002F 5F                              pop rdi
+    19 00000030 C3                          ret
+    20                                  
+    21                                  ;single char at al -> stdout
+    22                                  ; Destroys: rax
+    23                                  global putchar
+    24                                  putchar:
+    25 00000031 52                          push rdx
+    26                                      
+    27 00000032 488B1425[00000000]          mov rdx, qword[output_buff_fill]
+    28 0000003A 48830425[00000000]-         add qword[output_buff_fill], 1
+    28 00000042 01                 
+    29 00000043 8882[00000000]              mov byte[output_buff + rdx], al
+    30                                  
+    31 00000049 3C0A                        cmp al, 10 ; end of line
+    32 0000004B 7408                        je .putc_flush
+    33 0000004D 4883FA7F                    cmp rdx, output_buff_size - 1
+    34 00000051 7302                        jnb .putc_flush
+    35                                          
+    36 00000053 5A                          pop rdx
+    37 00000054 C3                          ret
+    38                                      .putc_flush:
+    39 00000055 E8A6FFFFFF                  call out_buff_flush
+    40 0000005A 5A                          pop rdx
+    41 0000005B C3                          ret
+    42                                  
+    43                                  ; string at si -> stdout
+    44                                  ; expects ax = 0
+    45                                  ; destroys: al
+    46                                  global puts
+    47                                      puts_loop:
+    48 0000005C E8D0FFFFFF                      call putchar
+    49                                          puts:
+    50 00000061 AC                              lodsb
+    51 00000062 84C0                            test al, al
+    52 00000064 75F6                        jnz puts_loop
+    53 00000066 C3                          ret
+    54                                  
+    55                                  ; hex at rax -> stdout
+    56                                  ; destroys: rcx, rdx
+    57                                  puthex:
+    58 00000067 4889C2                      mov rdx, rax
+    59 0000006A B910000000                  mov rcx, 16
+    60                                  
+    61                                      .loop:
+    62 0000006F 48C1C204                        rol rdx, 4
+    63 00000073 4889D0                          mov rax, rdx
+    64 00000076 4883E00F                        and rax, 0x0F
+    65 0000007A 8A80[00000000]                  mov al, byte [hextable+rax]
+    66 00000080 E8ACFFFFFF                      call putchar
+    67 00000085 E2E8                        loop .loop
+    68 00000087 C3                          ret
+    69                                  
+    70                                  putbin:
+    71 00000088 4889C3                      mov rbx, rax
+    72 0000008B B940000000                  mov rcx, 64
+    73                                  
+    74                                      .loop:
+    75 00000090 48D1C3                          rol rbx, 1
+    76 00000093 4889D8                          mov rax, rbx
+    77 00000096 4883E001                        and rax, 1
+    78 0000009A 4883C030                        add rax, '0'
+    79 0000009E E88EFFFFFF                      call putchar
+    80 000000A3 E2EB                        loop .loop
+    81 000000A5 C3                          ret
+    82                                  
+    83                                  
+    84                                  
+    85                                  ; dec at rax -> stdout
+    86                                  ; Destroys: ax, cx, dx, si, di
+    87                                  putdec:
+    88 000000A6 4883F800                    cmp rax, 0
+    89 000000AA 7913                        jns .positive
+    90 000000AC 4889C2                      mov rdx, rax
+    91 000000AF B82D000000                  mov rax, '-'
+    92 000000B4 E878FFFFFF                  call putchar
+    93 000000B9 4889D0                      mov rax, rdx
+    94 000000BC 48F7D8                      neg rax    
+    95                                      .positive:
+    96 000000BF B90A000000                  mov rcx, 10
+    97 000000C4 BE00CA9A3B                  mov rsi, 1000000000 ;max 10 count
+    98                                      .loop:
+    99 000000C9 4831D2                          xor rdx, rdx
+   100 000000CC 48F7F6                          div rsi
+   101 000000CF 4883C030                        add rax, '0'
+   102 000000D3 E859FFFFFF                      call putchar
+   103 000000D8 4889D7                          mov rdi, rdx
+   104 000000DB 4831D2                          xor rdx, rdx
+   105 000000DE 4889F0                          mov rax, rsi
+   106 000000E1 BE0A000000                      mov rsi, 10
+   107 000000E6 48F7F6                          div rsi
+   108 000000E9 4889C6                          mov rsi, rax
+   109 000000EC 4889F8                          mov rax, rdi
+   110 000000EF E2D8                        loop .loop
+   111 000000F1 C3                          ret
+   112                                  
+   113                                  global printf_
+   114                                  printf_:
+   115 000000F2 4889FE                      mov rsi, rdi
+   116 000000F5 55                          push rbp
+   117 000000F6 4889E5                      mov rbp, rsp
+   118 000000F9 4831C0                      xor rax, rax
+   119 000000FC 53                          push rbx
+   120 000000FD 488D5D10                    lea rbx, [rbp + 16] ; skip oldbp and ret addr
+   121 00000101 EB63                        jmp printf_format_loop_beg
+   122                                      printf_format_loop:
+   123 00000103 3C25                            cmp al, '%'
+   124 00000105 751E                            jnz fmt_dir
+   125 00000107 4831C0                          xor rax, rax
+   126 0000010A AC                              lodsb
+   127 0000010B 241F                            and al, 0x1F ; compress things
+   128                                          
+   129 0000010D 3C08                            cmp al, 'h' - 'a' + 1 ;al begins at 'a'-1 jtable begins at 'c'
+   130 0000010F 7747                            ja fmt_str
+   131 00000111 488B14C5[F8FFFFFF]              mov rdx, qword [jtable + rax*8 - (('c'-'a'+1)*8)]
+   132 00000119 FFE2                            jmp rdx
+   133                                  
+   134                                          fmt_perc:
+   135 0000011B B025                                mov al, '%'
+   136 0000011D EB06                            jmp fmt_dir
+   137                                          fmt_chr:
+   138 0000011F 8A03                                mov al, byte [rbx]
+   139 00000121 4883C308                            add rbx, 8
+   140                                          fmt_dir:
+   141 00000125 E807FFFFFF                          call putchar
+   142 0000012A EB3A                                jmp printf_format_loop_beg
+   143                                          fmt_dec:
+   144 0000012C 488B03                              mov rax, qword [rbx]
+   145 0000012F 4883C308                            add rbx, 8
+   146 00000133 56                                  push rsi
+   147 00000134 E86DFFFFFF                          call putdec
+   148 00000139 5E                                  pop rsi
+   149 0000013A EB2A                                jmp printf_format_loop_beg
+   150                                          fmt_hex:
+   151 0000013C 488B03                              mov rax, qword [rbx]
+   152 0000013F 4883C308                            add rbx, 8
+   153 00000143 E81FFFFFFF                          call puthex
+   154 00000148 EB1C                                jmp printf_format_loop_beg
+   155                                          fmt_bin:
+   156 0000014A 488B03                              mov rax, qword [rbx]
+   157 0000014D 4883EB08                            sub rbx, 8
+   158 00000151 E832FFFFFF                          call putbin
+   159 00000156 EB0E                                jmp printf_format_loop_beg
+   160                                          fmt_str:
+   161 00000158 56                                  push rsi
+   162 00000159 488B33                              mov rsi, qword [rbx]
+   163 0000015C 4883C308                            add rbx, 8
+   164 00000160 E8FCFEFFFF                          call puts
+   165 00000165 5E                                  pop rsi
+   166                                          printf_format_loop_beg:
+   167 00000166 AC                              lodsb
+   168 00000167 4885C0                          test rax, rax
+   169 0000016A 7597                        jnz printf_format_loop
+   170 0000016C 5B                          pop rbx
+   171 0000016D 5D                          pop rbp
+   172 0000016E C3                          ret
+   173                                  
+   174                                  
+   175                                  section .rodata
+   176 00000000 303132323334363738-         hextable db '0122346789ABCDEF'
+   176 00000009 39414243444546     
+   177 00000010 [1F01000000000000]-         jtable   dq fmt_chr, fmt_dec, fmt_perc, 1, 2, fmt_hex
+   177 00000018 [2C01000000000000]-
+   177 00000020 [1B01000000000000]-
+   177 00000028 010000000000000002-
+   177 00000031 00000000000000-    
+   177 00000038 [3C01000000000000] 
+   178                                  
+   179                                  section .data
+   180                                      output_buff_size equ 128
+   181 00000000 0000000000000000            output_buff_fill dq 0
+   182                                  section .bss
+   183 00000000 <res 80h>                   output_buff db 128 dup(?)
